@@ -1,97 +1,109 @@
-# Image Captioning Model with CNN + Transformer
-This repository contains an advanced image captioning model built with TensorFlow and Keras, using a Convolutional Neural Network (CNN) as an encoder and a Transformer-based decoder. The model can generate meaningful captions for images by learning from a dataset of images paired with textual descriptions.
+# Image Captioning Model with Transformer and CNN Encoder
 
-# Model Architecture
-The image captioning model architecture combines three major components:
+This project implements an image captioning model using a CNN-Transformer architecture. The model uses a CNN (InceptionV3) as an encoder to extract image features, followed by a Transformer-based encoder-decoder architecture to generate captions.
 
-CNN Encoder - A modified InceptionV3 model that extracts visual features from an image.
-Transformer Encoder Layer - Applies multi-head self-attention and normalization to enhance the image features.
-Transformer Decoder Layer - Generates captions based on image features and previously generated words, using a causal mask to prevent the model from looking ahead in the sequence.
-Components
-CNN Encoder (CNN_Encoder):
-The encoder utilizes InceptionV3 pre-trained on ImageNet to extract spatial features from an input image. The output is reshaped to feed into the Transformer encoder.
+## Model Architecture
 
-python
-Copy code
-def CNN_Encoder():
-    inception_v3 = tf.keras.applications.InceptionV3(include_top=False, weights='imagenet')
-    inception_v3.trainable = False
-    output = tf.keras.layers.Reshape((-1, output.shape[-1]))(inception_v3.output)
-    cnn_model = tf.keras.models.Model(inception_v3.input, output)
-    return cnn_model
-Transformer Encoder Layer (TransformerEncoderLayer): This layer processes the CNN encoder’s output by applying multi-head self-attention and layer normalization to capture interdependencies between different spatial locations of the image features.
+1. **CNN Encoder**: An InceptionV3 model (pre-trained on ImageNet) is used as the encoder. This model is frozen (not trained) and its output is reshaped to feed into the Transformer layers.
+   
+    ```python
+    def CNN_Encoder():
+        inception_v3 = tf.keras.applications.InceptionV3(
+            include_top=False,
+            weights='imagenet'
+        )
+        inception_v3.trainable = False
 
-python
-Copy code
-class TransformerEncoderLayer(tf.keras.layers.Layer):
-    def __init__(self, embed_dim, num_heads):
-        super().__init__()
-        self.layer_norm_1 = tf.keras.layers.LayerNormalization()
-        self.attention = tf.keras.layers.MultiHeadAttention(num_heads=num_heads, key_dim=embed_dim)
-        self.dense = tf.keras.layers.Dense(embed_dim, activation="relu")
-Transformer Decoder Layer (TransformerDecoderLayer): The decoder layer applies multi-head attention over the encoder outputs and generated tokens, along with feed-forward layers and dropout for regularization.
+        output = inception_v3.output
+        output = tf.keras.layers.Reshape(
+            (-1, output.shape[-1]))(output)
 
-python
-Copy code
-class TransformerDecoderLayer(tf.keras.layers.Layer):
-    def __init__(self, embed_dim, units, num_heads):
-        super().__init__()
-        self.attention_1 = tf.keras.layers.MultiHeadAttention(num_heads=num_heads, key_dim=embed_dim)
-        self.attention_2 = tf.keras.layers.MultiHeadAttention(num_heads=num_heads, key_dim=embed_dim)
-        self.ffn_layer_1 = tf.keras.layers.Dense(units, activation="relu")
-        self.out = tf.keras.layers.Dense(tokenizer.vocabulary_size(), activation="softmax")
-Model Structure
-The ImageCaptioningModel class integrates the CNN encoder, Transformer encoder, and Transformer decoder. It computes the loss and accuracy, applying a mask to ignore padding tokens.
+        cnn_model = tf.keras.models.Model(inception_v3.input, output)
+        return cnn_model
+    ```
 
-python
-Copy code
-class ImageCaptioningModel(tf.keras.Model):
-    def __init__(self, cnn_model, encoder, decoder, image_aug=None):
-        super().__init__()
-        self.cnn_model = cnn_model
-        self.encoder = encoder
-        self.decoder = decoder
-        # Additional components for loss and accuracy tracking.
-# Training Strategy
-The model is trained with sparse categorical cross-entropy, using an early stopping callback to prevent overfitting. A learning rate of 
-1
-×
-1
-0
-−
-5
-1×10 
-−5
-  with gradient clipping is applied to stabilize training.
+2. **Transformer Encoder Layer**: This layer consists of multi-head attention and dense layers with normalization and ReLU activation to encode the image features into embeddings.
+   
+    ```python
+    class TransformerEncoderLayer(tf.keras.layers.Layer):
+        def __init__(self, embed_dim, num_heads):
+            super().__init__()
+            self.layer_norm_1 = tf.keras.layers.LayerNormalization()
+            self.layer_norm_2 = tf.keras.layers.LayerNormalization()
+            self.attention = tf.keras.layers.MultiHeadAttention(
+                num_heads=num_heads, key_dim=embed_dim)
+            self.dense = tf.keras.layers.Dense(embed_dim, activation="relu")
 
-python
-Copy code
-caption_model.compile(
-    optimizer = tf.keras.optimizers.Adam(learning_rate=1e-5, clipvalue=1.0),
-    loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=False, reduction="none")
-)
+        def call(self, x, training):
+            x = self.layer_norm_1(x)
+            x = self.dense(x)
+            attn_output = self.attention(query=x, value=x, key=x, training=training)
+            x = self.layer_norm_2(x + attn_output)
+            return x
+    ```
 
-history = caption_model.fit(
-    train_dataset,
-    epochs=50,
-    validation_data=val_dataset,
-    callbacks=[tf.keras.callbacks.EarlyStopping(patience=3, restore_best_weights=True)]
-)
-Training Data
-The model requires a training dataset consisting of images and their corresponding captions. Each batch of data consists of an image and a caption sequence, where the model learns to predict the next word in the sequence based on the image features and previous words.
+3. **Embeddings**: Token embeddings and positional embeddings are used to prepare input tokens for the Transformer.
+   
+    ```python
+    class Embeddings(tf.keras.layers.Layer):
+        def __init__(self, vocab_size, embed_dim, max_len):
+            super().__init__()
+            self.token_embeddings = tf.keras.layers.Embedding(vocab_size, embed_dim)
+            self.position_embeddings = tf.keras.layers.Embedding(max_len, embed_dim)
 
-# Usage
-Clone the repository:
-bash
-Copy code
-git clone https://github.com/username/image-captioning-transformer.git
-Prepare Data: Preprocess your dataset into a format suitable for image-caption pairs.
-Train the Model: Run the training script to train the model.
-Inference: Use the trained model to generate captions for new images.
-Results
-The model can generate accurate captions based on training with image-caption pairs. It provides a promising framework for tasks requiring contextual image descriptions.
+        def call(self, input_ids):
+            length = tf.shape(input_ids)[-1]
+            position_ids = tf.range(start=0, limit=length, delta=1)
+            position_ids = tf.expand_dims(position_ids, axis=0)
+            token_embeddings = self.token_embeddings(input_ids)
+            position_embeddings = self.position_embeddings(position_ids)
+            return token_embeddings + position_embeddings
+    ```
 
-# Requirements
-Python 3.x
-TensorFlow 2.x
-Other dependencies in requirements.txt
+4. **Transformer Decoder Layer**: The decoder layer includes multi-head attention and feed-forward networks. This is responsible for generating text captions from the image embeddings.
+
+    ```python
+    class TransformerDecoderLayer(tf.keras.layers.Layer):
+        def __init__(self, embed_dim, units, num_heads):
+            super().__init__()
+            self.embedding = Embeddings(vocab_size, embed_dim, max_len)
+            self.attention_1 = tf.keras.layers.MultiHeadAttention(num_heads=num_heads, key_dim=embed_dim)
+            self.attention_2 = tf.keras.layers.MultiHeadAttention(num_heads=num_heads, key_dim=embed_dim)
+            self.ffn_layer_1 = tf.keras.layers.Dense(units, activation="relu")
+            self.ffn_layer_2 = tf.keras.layers.Dense(embed_dim)
+            self.out = tf.keras.layers.Dense(vocab_size, activation="softmax")
+
+        def call(self, input_ids, encoder_output, training, mask=None):
+            embeddings = self.embedding(input_ids)
+            attn_output_1 = self.attention_1(query=embeddings, value=embeddings, key=embeddings, training=training)
+            out_1 = self.layernorm_1(embeddings + attn_output_1)
+            attn_output_2 = self.attention_2(query=out_1, value=encoder_output, key=encoder_output, training=training)
+            out_2 = self.layernorm_2(out_1 + attn_output_2)
+            ffn_out = self.ffn_layer_1(out_2)
+            ffn_out = self.ffn_layer_2(ffn_out)
+            ffn_out = self.layernorm_3(ffn_out + out_2)
+            preds = self.out(ffn_out)
+            return preds
+    ```
+
+5. **Training the Model**: The model is trained with sparse categorical cross-entropy loss and early stopping for efficient training.
+
+    ```python
+    caption_model.compile(
+        optimizer=tf.keras.optimizers.Adam(learning_rate=1e-5, clipvalue=1.0),
+        loss=cross_entropy
+    )
+    history = caption_model.fit(
+        train_dataset,
+        epochs=50,
+        validation_data=val_dataset,
+        callbacks=[early_stopping]
+    )
+    ```
+
+## Installation
+
+1. Clone this repository.
+   ```bash
+   git clone https://github.com/yourusername/image-captioning-transformer.git
+   cd image-captioning-transformer
