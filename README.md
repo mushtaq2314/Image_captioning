@@ -100,6 +100,9 @@ This project implements an image captioning model using a CNN-Transformer archit
         callbacks=[early_stopping]
     )
     ```
+## Process
+
+![Image Captioning Process](Imagecaptioning.png)
 
 ## Installation
 
