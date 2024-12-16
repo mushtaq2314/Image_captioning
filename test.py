@@ -373,7 +373,7 @@ def generate_caption(img_path):
     return y_inp
 
 
-img_path = '/Users/seemanthrajukurapati/Desktop/imfcap/images/image1.jpeg' 
+img_path = '<image_path>' 
 
 pred_caption = generate_caption(img_path)
 print('Predicted Caption:', pred_caption)
